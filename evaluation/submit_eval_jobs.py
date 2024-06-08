@@ -25,7 +25,7 @@ configs = [
         'expname': 'eval-deepseek-math-7b-instruct'
     },
     {
-        'output-dir': "outputs/DeepSeekMath-RL",
+        'output-dir': "outputs/DeepSeekMath-RL-debug",
         'model-path': "deepseek-ai/deepseek-math-7b-rl",
         'tokenizer-path': "deepseek-ai/deepseek-math-7b-rl",
         'model-size': "7b",
@@ -45,7 +45,8 @@ def main():
     parser.add_argument("--n-gpus", type=int, default=8)
     args = parser.parse_args()
 
-    conf = base_conf # TODO: your conf here
+    # conf = base_conf # TODO: your conf here
+    conf = rl_conf # TODO: your conf here
     cmd = "python run_subset_parallel.py"
     for key, val in conf.items():
         if key == 'expname':

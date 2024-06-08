@@ -14,6 +14,22 @@ def process_gsm8k_test(item):
     }
     yield sample
 
+def process_math_test_csv(item):
+    question = item.problem
+    sample = {
+        "dataset": "math-cot",
+        "id": item.id,
+        "level": '5',
+        "category": item.id.split('-')[0],
+        "messages": [
+            {"role": "user", "content": question},
+            {"role": "assistant", "content": ""}
+        ],
+        "answer": [str(item.answer)]
+    }
+    yield sample
+
+
 def process_math_test(item):
     question = item["problem"]
     try:

@@ -25,6 +25,12 @@ def read_data(path):
             for line in file:
                 line = json.loads(line)
                 data.append(line)
+    elif path.endswith("csv"):
+        data = []
+        import pandas as pd
+        df = pd.read_csv(path)
+        for i in range(len(df)):
+            data.append(df.iloc[i])
     else:
         raise NotImplementedError()
     return data
