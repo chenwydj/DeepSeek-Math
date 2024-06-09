@@ -1,6 +1,7 @@
 import argparse
 import os
 import sys
+import time
 from pdb import set_trace as bp
 import_path = os.path.abspath(__file__)
 for _ in range(2):
@@ -47,7 +48,7 @@ def finish_answer_prediction(text):
     patt = regex.search(r"\\boxed{(?P<ans>.+)}", text)
     return patt is not None and patt.group('ans').strip()
 
-def evaluate(eval_fn, tasks, _timeout=15):
+def evaluate(eval_fn, tasks, _timeout=15, modular=None):
     with ProcessPool() as pool:
         timeout_cnt = 0
         iterator = pool.map(eval_fn, tasks, timeout=_timeout).result()
@@ -55,6 +56,8 @@ def evaluate(eval_fn, tasks, _timeout=15):
         while True:
             try:
                 labels.append(int(next(iterator)))
+                if isinstance(modular, int):
+                    labels[-1] = labels[-1] % modular
             except StopIteration:
                 break
             except TimeoutError as error:
@@ -234,7 +237,28 @@ def main(args):
     if not os.path.exists(args.save_dir):
         os.makedirs(args.save_dir, exist_ok=True)
 
+    now = time.time()
     results = [[item] for item in infer(args, test_data)]
+    if args.n_repetition > 1:
+        for items in results:
+            for item in items:
+                item['program_output'] = [item['program_output']]
+        for _r in range(args.n_repetition - 1):
+            _results = [[item] for item in infer(args, test_data)]
+            for items, _items in zip (results, _results):
+                for item, _item in zip(items, _items):
+                    item['prediction'].append(_item['prediction'][0])
+                    item['program_output'].append(_item['program_output'])
+        from collections import Counter
+        for items in results:
+            for item in items:
+                print("problem")
+                print(item['prediction'])
+                print(item['program_output'])
+                item['prediction'] = [Counter(item['prediction']).most_common()[0][0]]
+                item['program_output'] = Counter(item['program_output']).most_common()[0][0]
+                print(item['prediction'])
+                print(item['program_output'])
 
     all_items = []
     for items in results:
@@ -242,6 +266,7 @@ def main(args):
             all_items.append(item)
 
     labels, eval_timeout_cnt = evaluate(eval(args.eval_fn), all_items)
+    print(labels)
     for item, label in zip(all_items, labels):
         item['accuracy'] = label
     program_labels, program_eval_timeout_cnt = evaluate(partial(eval(args.eval_fn), pred_key='program_output'), all_items)
@@ -264,6 +289,7 @@ def main(args):
     print("output acc = {:.5f}; program acc = {:.5f}".format(acc / len(results) * 100, program_acc / len(results) * 100), flush=True)
 
     print(f"Timeout count >>> output eval = {eval_timeout_cnt}; program eval = {program_eval_timeout_cnt}", flush=True)
+    print(f"TIME SPENT >>> {time.time() - now} sec.")
 
     pred_fname = "predictions.json"
     if args.n_subsets > 1:
@@ -296,9 +322,10 @@ if __name__ == "__main__":
     parser.add_argument("--infer_train_set", action="store_true")
     parser.add_argument("--n_subsets", type=int, default=1)
     parser.add_argument("--subset_id", type=int, default=0)
-    parser.add_argument("--temperature", type=float, default=0.0)
+    parser.add_argument("--temperature", type=float, default=0.9)
     parser.add_argument("--repeat_id_start", type=int, default=0)
     parser.add_argument("--n_repeat_sampling", type=int, default=1)
+    parser.add_argument("--n_repetition", type=int, default=18)
     parser.add_argument("--complete_partial_output", action='store_true')
     parser.add_argument("--use_concise_exec_info", action='store_true')
     parser.add_argument("--prompt_format", type=str, choices=['sft', 'few_shot'], default='sft')

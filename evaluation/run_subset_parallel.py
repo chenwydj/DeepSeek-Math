@@ -65,6 +65,7 @@ def do_parallel_sampling(args, task, answer_extraction_fn, eval_fn, input_dir, o
             f"--temperature {args.temperature} " \
             f"--repeat_id_start 0 " \
             f"--n_repeat_sampling {args.n_repeats} " \
+            f"--n_repetition {args.n_repetition} " \
             f"--n_subsets {global_n_procs} " \
             f"--prompt_format {args.prompt_format} " \
             f"--few_shot_prompt {args.few_shot_prompt} " \
@@ -79,6 +80,7 @@ def do_parallel_sampling(args, task, answer_extraction_fn, eval_fn, input_dir, o
         local_metric_path = os.path.join(output_dir, f"metrics.{global_pid}.json")
         if not args.overwrite and os.path.exists(local_metric_path) and read_data(local_metric_path)['n_samples'] > 0:
             continue
+        print(cmd)
         procs.append((global_pid, subprocess.Popen(cmd.split(), stdout=f, stderr=f), f))
     for (global_pid, proc, f) in procs:
         print(f"Waiting for the {global_pid}th process to finish ...", flush=True)
@@ -129,6 +131,7 @@ def main():
     parser.add_argument("--overwrite", action='store_true')
     parser.add_argument("--temperature", type=float, default=0)
     parser.add_argument("--n-repeats", type=int, default=1)
+    parser.add_argument("--n-repetition", type=int, default=1)
     parser.add_argument("--use-vllm", action='store_true')
     parser.add_argument("--load_in_half", action='store_true')
 
