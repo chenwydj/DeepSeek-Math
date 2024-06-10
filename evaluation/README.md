@@ -4,6 +4,8 @@ Evaluating deepseek-ai/deepseek-math-7b-rl
 
 python infer/run_tool_integrated_eval.py --data_dir outputs/DeepSeekMath-RL-debug/math-test/infer_logs/tool/test_data --max_num_examples 100000000000000 --save_dir outputs/DeepSeekMath-RL-debug/math-test/infer_logs/tool/samples --model deepseek-ai/deepseek-math-7b-rl --tokenizer deepseek-ai/deepseek-math-7b-rl --eval_batch_size 1 --temperature 0.9 --repeat_id_start 0 --n_repeat_sampling 1 --n_subsets 1 --prompt_format sft --few_shot_prompt None --answer_extraction_fn extract_math_answer --eval_fn eval_math --subset_id 0 --gpus 0  --use_vllm
 
+TOKENIZERS_PARALLELISM=true python infer/run_tool_integrated_eval.py
+
 n_repetition = 18
 output acc = 42.00000; program acc = 39.33333
 TIME SPENT >>> 3996.6007463932037 sec.
