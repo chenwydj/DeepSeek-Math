@@ -249,6 +249,7 @@ predictions = []
 program_outputs = []
 df['model_answer'] = [-1] * len(df)
 for i_problem in tqdm(range(len(df))):
+    if i_problem < 18: continue
     TIME_SPENT = time.time() - NOTEBOOK_START_TIME # accumulated time
     if TIME_SPENT > TIME_LIMIT:
         break
@@ -269,7 +270,7 @@ for i_problem in tqdm(range(len(df))):
     results = infer(item, N_REPETITION)
     if N_REPETITION > 1:
         _program_outputs = [result['program_output'] for result in results]
-        _predictions = [result['prediction'][0] for result in results]
+        _predictions = [result['prediction'][0] if len(result['prediction']) > 0 else -1 for result in results]
         print(_program_outputs)
         print(_predictions)
         _program_output = Counter(_program_outputs).most_common()[0][0]
