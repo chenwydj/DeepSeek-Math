@@ -7,6 +7,9 @@ import_path = os.path.abspath(__file__)
 for _ in range(2):
     import_path = os.path.dirname(import_path)
 sys.path.append(import_path)
+import copy
+from collections import Counter
+import pandas as pd
 
 from tqdm import tqdm
 import regex
@@ -68,19 +71,21 @@ def evaluate(eval_fn, tasks, _timeout=15, modular=None):
                 exit()
     return labels, timeout_cnt
 
-def infer(args, test_data):
-    if args.prompt_format == 'few_shot':
-        assert args.few_shot_prompt is not None
-        prompting = eval(args.few_shot_prompt)()
+
+def infer(sample, n_repetition=1):
+    test_data = [copy.deepcopy(sample) for _ in range(n_repetition)]
+    if PROMPT_FORMAT == 'few_shot':
+        assert FEW_SHOT_PROMPT is not None
+        prompting = eval(FEW_SHOT_PROMPT)()
 
     prompts = []
     for example in test_data:
         prompt = ""
-        if args.prompt_format == 'few_shot':
+        if PROMPT_FORMAT == 'few_shot':
             prompt = prompting.format_prompt(example['messages'][-2]['content'], example['messages'][-1]['content'])
         else:
             for mess in example['messages']:
-                if args.prompt_format == 'sft':
+                if PROMPT_FORMAT == 'sft':
                     if mess['role'] == 'user':
                         prompt += f"User: {mess['content'].strip()}\n\nAssistant:"
                     elif mess['role'] == 'assistant':
@@ -101,30 +106,30 @@ def infer(args, test_data):
         model_inputs = [prompts[i] for i in unfinished_ids]
         finish_completion = None
         print("Loading model and tokenizer...")
-        if args.use_vllm:
+        if USE_VLLM:
             if tokenizer is None:
-                tokenizer = AutoTokenizer.from_pretrained(args.tokenizer_name_or_path, trust_remote_code=True)
+                tokenizer = AutoTokenizer.from_pretrained(TOKENIZER_NAME_OR_PATH, trust_remote_code=True)
                 print(f"{'-' * 20} prompt_to_ids {'-' * 20}\n{tokenizer.encode(model_inputs[0])}\n{'-' * 50}", flush=True)
                 print(f"eos_token: {tokenizer.eos_token}", flush=True)
             if model is None:
-                model = LLM(model=args.model_name_or_path, dtype='half', kv_cache_dtype="fp8_e4m3", max_model_len=2048, swap_space=4, gpu_memory_utilization=0.4, enforce_eager=True, tokenizer=args.tokenizer_name_or_path, trust_remote_code=True, tensor_parallel_size=len(os.environ['CUDA_VISIBLE_DEVICES'].split(",")))
+                model = LLM(model=MODEL_NAME_OR_PATH, dtype='half', kv_cache_dtype="fp8_e4m3", max_model_len=2048, swap_space=4, gpu_memory_utilization=0.4, enforce_eager=True, tokenizer=TOKENIZER_NAME_OR_PATH, trust_remote_code=True, tensor_parallel_size=len(os.environ['CUDA_VISIBLE_DEVICES'].split(",")))
             stop_words = [tokenizer.eos_token if tokenizer is not None and tokenizer.eos_token is not None else '</s>']
-            if not args.no_execution:
+            if not NO_EXECUTION:
                 stop_words.append("```output")
-            if args.prompt_format == 'few_shot':
+            if PROMPT_FORMAT == 'few_shot':
                 stop_words.extend(prompting.stop_words())
-            outputs = model.generate(model_inputs, SamplingParams(temperature=args.temperature, top_p=1.0, max_tokens=1024, n=1, stop=stop_words))
+            outputs = model.generate(model_inputs, SamplingParams(temperature=TEMPERATURE, top_p=1.0, max_tokens=1024, n=1, stop=stop_words))
             outputs = sorted(outputs, key=lambda x: int(x.request_id)) # sort outputs by request_id
             finish_completion = [output.outputs[0].token_ids[-1] == tokenizer.eos_token_id for output in outputs]
             outputs = [output.outputs[0].text for output in outputs]
         else:
             if model is None or tokenizer is None:
                 model, tokenizer = load_hf_lm_and_tokenizer(
-                    model_name_or_path=args.model_name_or_path, 
-                    tokenizer_name_or_path=args.tokenizer_name_or_path, 
-                    load_in_8bit=args.load_in_8bit, 
-                    load_in_half=args.load_in_half,
-                    gptq_model=args.gptq
+                    model_name_or_path=MODEL_NAME_OR_PATH, 
+                    tokenizer_name_or_path=TOKENIZER_NAME_OR_PATH, 
+                    load_in_8bit=LOAD_IN_8BIT, 
+                    load_in_half=LOAD_IN_HALF,
+                    gptq_model=GPTQ
                 )
 
             stop_id_sequences = [tokenizer.encode("```output", add_special_tokens=False)]
@@ -135,7 +140,7 @@ def infer(args, test_data):
                 tokenizer=tokenizer,
                 prompts=model_inputs,
                 max_new_tokens=512,
-                batch_size=args.eval_batch_size,
+                batch_size=EVAL_BATCH_SIZE,
                 stop_id_sequences=stop_id_sequences,
                 end_of_generation_id_sequence=[tokenizer.eos_token_id] if tokenizer.eos_token_id is not None else None
             )
@@ -153,7 +158,7 @@ def infer(args, test_data):
         code_indices = []
         for i, output, is_finished in zip(unfinished_ids, outputs, finish_completion):
             output = output.rstrip()
-            if not args.no_execution and not is_finished:
+            if not NO_EXECUTION and not is_finished:
                 code = extract_code(model_outputs[i] + output)
                 if code:
                     codes.append(code)
@@ -168,16 +173,16 @@ def infer(args, test_data):
             exec_result = str(exec_result).strip()
             if len(exec_result) > 100:
                 exec_result = exec_result[:50] + "..." + exec_result[-50:]
-            runtime_msg = str(metadata['concise_exec_info']).strip() if args.use_concise_exec_info else str(metadata['exec_info']).strip()
+            runtime_msg = str(metadata['concise_exec_info']).strip() if USE_CONCISE_EXEC_INFO else str(metadata['exec_info']).strip()
             if not exec_result:
                 runtime_msg = str(runtime_msg).strip()
-                if args.use_concise_exec_info:
+                if USE_CONCISE_EXEC_INFO:
                     if len(runtime_msg) > 100:
                         runtime_msg = runtime_msg[:50] + "..." + runtime_msg[-50:]
                     exec_result = runtime_msg
                 else:
                     if tokenizer is None:
-                        tokenizer = AutoTokenizer.from_pretrained(args.model_name_or_path or args.tokenizer_name_or_path, trust_remote_code=True)
+                        tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME_OR_PATH or TOKENIZER_NAME_OR_PATH, trust_remote_code=True)
                     tokens = tokenizer.tokenize(runtime_msg)
                     if len(tokens) > 100:
                         runtime_msg = f"{tokenizer.convert_tokens_to_string(tokens[:50]).strip()} ... {tokenizer.convert_tokens_to_string(tokens[-50:]).strip()}"
@@ -190,7 +195,7 @@ def infer(args, test_data):
 
         n_iters -= 1
 
-    predictions = [eval(args.answer_extraction_fn)(item['messages'][-2]['content'], output, task='interleave') for item, output in tqdm(zip(test_data, model_outputs), desc="extract answer", total=len(model_outputs))]
+    predictions = [eval(ANSWER_EXTRACTION_FN)(item['messages'][-2]['content'], output, task='interleave') for item, output in tqdm(zip(test_data, model_outputs), desc="extract answer", total=len(model_outputs))]
     program_outputs = [extract_program_output(output) for output in tqdm(model_outputs, desc='extract program output', total=len(model_outputs))]
     assert len(model_outputs) > 0, f"{len(model_outputs)}"
 
@@ -207,152 +212,75 @@ def infer(args, test_data):
     return results
 
 
-def main(args):
-    random.seed(42)
 
-    print("Loading data...")
-    test_data = []
-    with open(os.path.join(args.data_dir, f"train.jsonl" if args.infer_train_set else f"test.jsonl")) as fin:
-        for line in fin:
-            example = json.loads(line)
-            messages = example['messages']
-            assert len(messages) in [2, 3]
-            assert messages[-1]['role'] == 'assistant'
-            if not args.complete_partial_output:
-                example['reference'] = example.get('reference', '') or messages[-1]['content']
-                messages[-1]['content'] = ''
-            example['messages'] = messages
-            test_data.append(example)
 
-    if args.max_num_examples and len(test_data) > args.max_num_examples:
-        test_data = random.sample(test_data, args.max_num_examples)
 
-    if args.n_subsets > 1:
-        assert args.subset_id >= 0 and args.subset_id < args.n_subsets
-        test_data = [item for i, item in enumerate(test_data) if i % args.n_subsets == args.subset_id]
+from config import *
+# if args.gpus is not None:
+os.environ['CUDA_VISIBLE_DEVICES'] = GPUS
 
-    if not test_data:
-        return
+# print(unparsed_args, flush=True)
 
-    if not os.path.exists(args.save_dir):
-        os.makedirs(args.save_dir, exist_ok=True)
+model = None
+tokenizer = None
+pool = None
+
+
+random.seed(42)
+
+
+df = pd.read_csv("./lv5_remove.csv")
+df = df[:25]
+print(df.head())
+print("#samples in csv:", len(df))
+NOTEBOOK_START_TIME = time.time()
+
+if not os.path.exists(SAVE_DIR):
+    os.makedirs(SAVE_DIR, exist_ok=True)
+
+predictions = []
+program_outputs = []
+df['model_answer'] = [-1] * len(df)
+for i_problem in tqdm(range(len(df))):
+    TIME_SPENT = time.time() - NOTEBOOK_START_TIME # accumulated time
+    if TIME_SPENT > TIME_LIMIT:
+        break
+    print(f"\n\n\n########## QUESTION {i_problem} - TIME_SPENT : {TIME_SPENT:.0f} secs")
+    problem = df['problem'].loc[i_problem]
+    fn = eval(PROCESS_FN)
+    item = {}
+    item["id"] = str(i_problem)
+    item["message"] = [
+        {"role": "user", "content": problem},
+        {"role": "assistant", "content": ""}
+    ]
 
     now = time.time()
-    results = [[item] for item in infer(args, test_data)]
-    if args.n_repetition > 1:
-        for items in results:
-            for item in items:
-                item['program_output'] = [item['program_output']]
-        for _r in range(args.n_repetition - 1):
-            _results = [[item] for item in infer(args, test_data)]
-            for items, _items in zip (results, _results):
-                for item, _item in zip(items, _items):
-                    item['prediction'].append(_item['prediction'][0])
-                    item['program_output'].append(_item['program_output'])
-        from collections import Counter
-        for items in results:
-            for item in items:
-                print("problem")
-                print(item['prediction'])
-                print(item['program_output'])
-                item['prediction'] = [Counter(item['prediction']).most_common()[0][0]]
-                item['program_output'] = Counter(item['program_output']).most_common()[0][0]
-                print(item['prediction'])
-                print(item['program_output'])
-
-    all_items = []
-    for items in results:
-        for item in items:
-            all_items.append(item)
-
-    labels, eval_timeout_cnt = evaluate(eval(args.eval_fn), all_items)
-    print(labels)
-    for item, label in zip(all_items, labels):
-        item['accuracy'] = label
-    program_labels, program_eval_timeout_cnt = evaluate(partial(eval(args.eval_fn), pred_key='program_output'), all_items)
-    for item, label in zip(all_items, program_labels):
-        item['program_accuracy'] = label
-
-    _results = []
-    for items in tqdm(results, desc='eval', total=len(results)):
-        item = items[-1]
-        item['history'] = items[:-1]
-        _results.append(item)
-    results = _results
-
-    print("Calculating accuracy...")
-    acc = 0
-    program_acc = 0
-    for item in results:
-        acc += item['accuracy']
-        program_acc += item['program_accuracy']
-    print("output acc = {:.5f}; program acc = {:.5f}".format(acc / len(results) * 100, program_acc / len(results) * 100), flush=True)
-
-    print(f"Timeout count >>> output eval = {eval_timeout_cnt}; program eval = {program_eval_timeout_cnt}", flush=True)
-    print(f"TIME SPENT >>> {time.time() - now} sec.")
-
-    pred_fname = "predictions.json"
-    if args.n_subsets > 1:
-        pred_fname = f"predictions.{args.subset_id}.json"
-    with open(os.path.join(args.save_dir, pred_fname), "w") as fout:
-        json.dump(results, fout, ensure_ascii=True)
-
-    metric_fname = "metrics.json"
-    if args.n_subsets > 1:
-        metric_fname = f"metrics.{args.subset_id}.json"
-    with open(os.path.join(args.save_dir, metric_fname), "w") as fout:
-        json.dump({
-            "n_samples": len(results),
-            "accuracy": sum(item['accuracy'] for item in results) / len(results),
-            "program_accuracy": sum(item['program_accuracy'] for item in results) / len(results)
-        }, fout, indent=4)
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--data_dir", type=str, default="data/mgsm")
-    parser.add_argument("--max_num_examples", type=int, default=None, help="maximum number of examples to evaluate.")
-    parser.add_argument("--save_dir", type=str, default="results/mgsm")
-    parser.add_argument("--model_name_or_path", type=str, default=None, help="if specified, we will load the model to generate the predictions.")
-    parser.add_argument("--tokenizer_name_or_path", type=str, default=None, help="if specified, we will load the tokenizer from here.")
-    parser.add_argument("--eval_batch_size", type=int, default=1, help="batch size for evaluation.")
-    parser.add_argument("--load_in_8bit", action="store_true", help="load model in 8bit mode, which will reduce memory and speed up inference.")
-    parser.add_argument("--gptq", action="store_true", help="If given, we're evaluating a 4-bit quantized GPTQ model.")
-    parser.add_argument("--use_vllm", action="store_true")
-    parser.add_argument("--load_in_half", action='store_true')
-    parser.add_argument("--infer_train_set", action="store_true")
-    parser.add_argument("--n_subsets", type=int, default=1)
-    parser.add_argument("--subset_id", type=int, default=0)
-    parser.add_argument("--temperature", type=float, default=0.9)
-    parser.add_argument("--repeat_id_start", type=int, default=0)
-    parser.add_argument("--n_repeat_sampling", type=int, default=1)
-    parser.add_argument("--n_repetition", type=int, default=18)
-    parser.add_argument("--complete_partial_output", action='store_true')
-    parser.add_argument("--use_concise_exec_info", action='store_true')
-    parser.add_argument("--prompt_format", type=str, choices=['sft', 'few_shot'], default='sft')
-    parser.add_argument("--few_shot_prompt", type=str, default=None)
-    parser.add_argument("--answer_extraction_fn", type=str, required=True)
-    parser.add_argument("--no-execution", action='store_true')
-    parser.add_argument("--eval_fn", type=str, required=True)
-    parser.add_argument("--gpus", type=str, default=None)
-    args, unparsed_args = parser.parse_known_args()
-    if args.gpus is not None:
-        os.environ['CUDA_VISIBLE_DEVICES'] = args.gpus
-
-    print(unparsed_args, flush=True)
-
-    model = None
-    tokenizer = None
-    pool = None
-    if args.n_repeat_sampling > 1 or args.repeat_id_start != 0:
-        assert args.temperature > 0
-        save_dir = args.save_dir
-        for i in range(args.repeat_id_start, args.repeat_id_start + args.n_repeat_sampling):
-            print(f"working on the {i} trials ...", flush=True)
-            args.save_dir = os.path.join(save_dir, str(i))
-            os.makedirs(args.save_dir, exist_ok=True)
-            main(args)
+    results = infer(item, N_REPETITION)
+    if N_REPETITION > 1:
+        _program_outputs = [result['program_output'] for result in results]
+        _predictions = [result['prediction'] for result in results]
+        _program_output = Counter(_program_outputs).most_common()[0][0]
+        _prediction = Counter(_predictions).most_common()[0][0]
     else:
-        main(args)
+        _program_output = results[0]['program_output']
+        _prediction = results[0]['prediction']
+    predictions.append(_prediction)
+    program_outputs.append(_program_output)
+    # print("problem")
+    # print(item['prediction'])
+    # print(item['program_output'])
+    # item['prediction'] = [Counter(item['prediction']).most_common()[0][0]]
+    # item['program_output'] = Counter(item['program_output']).most_common()[0][0]
+    # print(item['prediction'])
+    # print(item['program_output'])
+    df['model_answer'].iloc[i_problem] = _prediction
+    df['match'] = df.answer == df.model_answer
+    print(f'{df.match.sum()} matches in {i_problem+1} examples')
 
-    if pool is not None:
-        pool.close()
+df['model_answer'] = predictions
+df['match'] = df.answer == df.model_answer
+df.to_csv("submission.csv", header=True, index=False)
+print(f'{df.match.sum()} matches in {len(df)} examples')
+
+print(df)
