@@ -237,7 +237,7 @@ random.seed(42)
 
 
 df = pd.read_csv("./lv5_remove.csv")
-df = df[:25]
+# df = df[:25]
 print(df.head())
 print("#samples in csv:", len(df))
 NOTEBOOK_START_TIME = time.time()
@@ -286,7 +286,10 @@ for i_problem in tqdm(range(len(df))):
     # item['program_output'] = Counter(item['program_output']).most_common()[0][0]
     # print(item['prediction'])
     # print(item['program_output'])
-    df['model_answer'].iloc[i_problem] = _prediction
+    try:
+        df['model_answer'].iloc[i_problem] = round(float(eval(_prediction))) % 1000
+    except:
+        df['model_answer'].iloc[i_problem] = -1
     df['match'] = df.answer == df.model_answer
     print(f'{df.match.sum()} matches in {i_problem+1} examples')
 
