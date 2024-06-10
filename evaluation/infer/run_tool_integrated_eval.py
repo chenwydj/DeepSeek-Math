@@ -25,8 +25,11 @@ from eval.python_executor import PythonExecutor
 from transformers import AutoTokenizer
 
 from data_processing.answer_extraction import *
+from data_processing.process_utils import *
 from eval.eval_script import *
 from few_shot_prompts import *
+
+from run_subset_parallel import markup_question
 
 def extract_code(text):
     if not text.strip().endswith("```"):
@@ -102,7 +105,9 @@ def infer(sample, n_repetition=1):
 
     n_iters = 2
     global model, tokenizer
+    pbar = tqdm()
     while n_iters and unfinished_ids:
+        pbar.update(1)
         model_inputs = [prompts[i] for i in unfinished_ids]
         finish_completion = None
         print("Loading model and tokenizer...")
@@ -112,7 +117,7 @@ def infer(sample, n_repetition=1):
                 print(f"{'-' * 20} prompt_to_ids {'-' * 20}\n{tokenizer.encode(model_inputs[0])}\n{'-' * 50}", flush=True)
                 print(f"eos_token: {tokenizer.eos_token}", flush=True)
             if model is None:
-                model = LLM(model=MODEL_NAME_OR_PATH, dtype='half', kv_cache_dtype="fp8_e4m3", max_model_len=2048, swap_space=4, gpu_memory_utilization=0.4, enforce_eager=True, tokenizer=TOKENIZER_NAME_OR_PATH, trust_remote_code=True, tensor_parallel_size=len(os.environ['CUDA_VISIBLE_DEVICES'].split(",")))
+                model = LLM(model=MODEL_NAME_OR_PATH, dtype='half', kv_cache_dtype="auto", max_model_len=2048, swap_space=4, gpu_memory_utilization=0.4, enforce_eager=True, tokenizer=TOKENIZER_NAME_OR_PATH, trust_remote_code=True, tensor_parallel_size=len(os.environ['CUDA_VISIBLE_DEVICES'].split(",")))
                 # model = LLM(model=args.model_name_or_path, dtype='half', kv_cache_dtype="fp8_e4m3", max_model_len=2048, swap_space=4, gpu_memory_utilization=0.4, enforce_eager=True, tokenizer=args.tokenizer_name_or_path, trust_remote_code=True, tensor_parallel_size=len(os.environ['CUDA_VISIBLE_DEVICES'].split(",")))
                 # model = LLM(model=args.model_name_or_path, dtype='half', max_model_len=2048, swap_space=4, gpu_memory_utilization=0.4, enforce_eager=True, tokenizer=args.tokenizer_name_or_path, trust_remote_code=True, tensor_parallel_size=len(os.environ['CUDA_VISIBLE_DEVICES'].split(",")))
             stop_words = [tokenizer.eos_token if tokenizer is not None and tokenizer.eos_token is not None else '</s>']
@@ -252,16 +257,21 @@ for i_problem in tqdm(range(len(df))):
     fn = eval(PROCESS_FN)
     item = {}
     item["id"] = str(i_problem)
-    item["message"] = [
+    # item["level"] = '5',
+    # item["category"] = df['id'].loc[i_problem].split('-')[0],
+    item["messages"] = [
         {"role": "user", "content": problem},
         {"role": "assistant", "content": ""}
     ]
+    item = markup_question(None, item, "en", None, TASK)
 
     now = time.time()
     results = infer(item, N_REPETITION)
     if N_REPETITION > 1:
         _program_outputs = [result['program_output'] for result in results]
-        _predictions = [result['prediction'] for result in results]
+        _predictions = [result['prediction'][0] for result in results]
+        print(_program_outputs)
+        print(_predictions)
         _program_output = Counter(_program_outputs).most_common()[0][0]
         _prediction = Counter(_predictions).most_common()[0][0]
     else:

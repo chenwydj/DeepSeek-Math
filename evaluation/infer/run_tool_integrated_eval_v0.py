@@ -107,7 +107,7 @@ def infer(args, test_data):
                 print(f"{'-' * 20} prompt_to_ids {'-' * 20}\n{tokenizer.encode(model_inputs[0])}\n{'-' * 50}", flush=True)
                 print(f"eos_token: {tokenizer.eos_token}", flush=True)
             if model is None:
-                model = LLM(model=args.model_name_or_path, dtype='half', kv_cache_dtype="fp8_e4m3", max_model_len=2048, swap_space=4, gpu_memory_utilization=0.4, enforce_eager=True, tokenizer=args.tokenizer_name_or_path, trust_remote_code=True, tensor_parallel_size=len(os.environ['CUDA_VISIBLE_DEVICES'].split(",")))
+                model = LLM(model=args.model_name_or_path, dtype='half', kv_cache_dtype="auto", max_model_len=2048, swap_space=4, gpu_memory_utilization=0.58, enforce_eager=True, tokenizer=args.tokenizer_name_or_path, trust_remote_code=True, tensor_parallel_size=len(os.environ['CUDA_VISIBLE_DEVICES'].split(",")))
             stop_words = [tokenizer.eos_token if tokenizer is not None and tokenizer.eos_token is not None else '</s>']
             if not args.no_execution:
                 stop_words.append("```output")

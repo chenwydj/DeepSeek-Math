@@ -24,7 +24,7 @@ FEW_SHOT_PROMPT = None
 ANSWER_EXTRACTION_FN = "extract_math_answer"
 NO_EXECUTION = False
 EVAL_FN = "eval_math"
-GPUS = 0
+GPUS = "0"
 
 TIME_LIMIT = 9*60*60 - 20*60 # 9h is 32400s
 
@@ -34,3 +34,5 @@ TASKS = "tool"
 PROCESS_FN = "process_math_test_csv"
 ANSWER_EXTRACTION_FN = "extract_math_answer"
 EVAL_FN = "eval_math"
+
+TASK = "tool"
