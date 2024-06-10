@@ -249,7 +249,6 @@ predictions = []
 program_outputs = []
 df['model_answer'] = [-1] * len(df)
 for i_problem in tqdm(range(len(df))):
-    if i_problem < 18: continue
     TIME_SPENT = time.time() - NOTEBOOK_START_TIME # accumulated time
     if TIME_SPENT > TIME_LIMIT:
         break
