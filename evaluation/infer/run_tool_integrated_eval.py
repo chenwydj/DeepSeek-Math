@@ -113,6 +113,8 @@ def infer(sample, n_repetition=1):
                 print(f"eos_token: {tokenizer.eos_token}", flush=True)
             if model is None:
                 model = LLM(model=MODEL_NAME_OR_PATH, dtype='half', kv_cache_dtype="fp8_e4m3", max_model_len=2048, swap_space=4, gpu_memory_utilization=0.4, enforce_eager=True, tokenizer=TOKENIZER_NAME_OR_PATH, trust_remote_code=True, tensor_parallel_size=len(os.environ['CUDA_VISIBLE_DEVICES'].split(",")))
+                # model = LLM(model=args.model_name_or_path, dtype='half', kv_cache_dtype="fp8_e4m3", max_model_len=2048, swap_space=4, gpu_memory_utilization=0.4, enforce_eager=True, tokenizer=args.tokenizer_name_or_path, trust_remote_code=True, tensor_parallel_size=len(os.environ['CUDA_VISIBLE_DEVICES'].split(",")))
+                # model = LLM(model=args.model_name_or_path, dtype='half', max_model_len=2048, swap_space=4, gpu_memory_utilization=0.4, enforce_eager=True, tokenizer=args.tokenizer_name_or_path, trust_remote_code=True, tensor_parallel_size=len(os.environ['CUDA_VISIBLE_DEVICES'].split(",")))
             stop_words = [tokenizer.eos_token if tokenizer is not None and tokenizer.eos_token is not None else '</s>']
             if not NO_EXECUTION:
                 stop_words.append("```output")
