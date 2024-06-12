@@ -9,6 +9,9 @@ TOKENIZERS_PARALLELISM=true python infer/run_tool_integrated_eval.py
 n_repetition = 18
 output acc = 42.00000; program acc = 39.33333
 TIME SPENT >>> 3996.6007463932037 sec.
+
+n_repetition = 20, timeout = 20, n_iter = 3
+150 problems 20011 sec.
 ```
 
 

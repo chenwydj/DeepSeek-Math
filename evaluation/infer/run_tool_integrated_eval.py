@@ -19,14 +19,14 @@ from copy import deepcopy
 from functools import partial
 from vllm import LLM, SamplingParams
 from pebble import ProcessPool
+from transformers import AutoTokenizer
 from concurrent.futures import TimeoutError
+
 from eval.utils import generate_completions, load_hf_lm_and_tokenizer
 from eval.python_executor import PythonExecutor
-from transformers import AutoTokenizer
-
+from eval.eval_script import *
 from data_processing.answer_extraction import *
 from data_processing.process_utils import *
-from eval.eval_script import *
 from few_shot_prompts import *
 
 from run_subset_parallel import markup_question
@@ -127,7 +127,8 @@ def infer(sample, n_repetition=1):
                 stop_words.extend(prompting.stop_words())
             outputs = model.generate(model_inputs, SamplingParams(temperature=TEMPERATURE, top_p=1.0, max_tokens=1024, n=1, stop=stop_words))
             outputs = sorted(outputs, key=lambda x: int(x.request_id)) # sort outputs by request_id
-            finish_completion = [output.outputs[0].token_ids[-1] == tokenizer.eos_token_id for output in outputs]
+            # finish_completion = [output.outputs[0].token_ids[-1] == tokenizer.eos_token_id for output in outputs]
+            finish_completion = [output.outputs[0].token_ids[-1] == tokenizer.eos_token_id if (len(output.outputs) > 0 and len(output.outputs[0].token_ids) > 0) else False for output in outputs]
             outputs = [output.outputs[0].text for output in outputs]
         else:
             if model is None or tokenizer is None:

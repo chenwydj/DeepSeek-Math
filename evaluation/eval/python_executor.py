@@ -80,7 +80,7 @@ class PythonExecutor:
         runtime = None,
         answer_symbol = None,
         answer_expr = None,
-        timeout_length = 10,
+        timeout_length = 60,
     ):
         try:
             if get_answer_from_stdout:
@@ -141,10 +141,10 @@ class PythonExecutor:
             runtime=self.runtime,
             answer_symbol=self.answer_symbol,
             answer_expr=self.answer_expr,
-            timeout_length=10,
+            timeout_length=60,
         )
         with ProcessPool(max_workers=multiprocess.cpu_count()) as pool:
-            iterator = pool.map(executor, all_code_snippets, timeout=10).result()
+            iterator = pool.map(executor, all_code_snippets, timeout=60).result()
 
             while True:
                 try:

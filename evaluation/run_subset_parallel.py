@@ -7,8 +7,11 @@ import json
 import subprocess
 from pdb import set_trace as bp
 
+# for local
 from utils import read_data
 from data_processing.process_utils import *
+# for kaggle only
+# from process_utils import *
 
 _worker_num = int(os.environ.get('WORLD_SIZE', 1))
 _worker_id = int(os.environ.get('RANK', 0))
@@ -24,9 +27,9 @@ def markup_question(args, item, language, src, task):
                 pass
         elif language == 'en':
             if task == 'cot':
-                item['messages'][i]['content'] = f"{item['messages'][i]['content']}\nPlease reason step by step, and put your final answer within " + "\\boxed{}."
+                item['messages'][i]['content'] = f"{item['messages'][i]['content']}\nYour final answer should be an nonnegative integer between 0 to 999. Please reason step by step, and put your final answer within " + "\\boxed{}."
             elif task == 'tool':
-                item['messages'][i]['content'] = f"{item['messages'][i]['content']}\nPlease integrate natural language reasoning with programs to solve the problem above, and put your final answer within " + "\\boxed{}."
+                item['messages'][i]['content'] = f"{item['messages'][i]['content']}\nYour final answer should be an nonnegative integer between 0 to 999. Please integrate natural language reasoning with programs to solve the problem above, and put your final answer within " + "\\boxed{}."
         else:
             pass
     return item
